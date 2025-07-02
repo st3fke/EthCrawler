@@ -60,29 +60,8 @@ cd ethereum-wallet-explorer
 
 ```bash
 npm install
-```
-
-Or if needed explicitly:
-
-```bash
 npm install dotenv express ethers path axios express-rate-limit ejs
 ```
-
-**Setup environment variables:**
-
-```bash
-cp .env.example .env
-```
-
-Then fill in your `.env` file:
-
-```env
-PORT=3000
-INFURA_API_KEY=your_infura_project_id
-ETHERSCAN_API_KEY=your_etherscan_api_key
-```
-
----
 
 ## 🧑‍💻 Running the Project
 
