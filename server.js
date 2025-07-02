@@ -48,42 +48,76 @@ async function getCurrentBalance(address) {
 
 // Helper function to get transactions (updated for ethers v6)
 async function getTransactions(address, startBlock, endBlock) {
+    const allTransactions = [];
+    let page = 1;
+    const maxPages = 10; // Adjust based on your needs
+    
     try {
-      const response = await axios.get('https://api.etherscan.io/api', {
-        params: {
-          module: 'account',
-          action: 'txlist',
-          address: address,
-          startblock: startBlock,
-          endblock: endBlock,
-          page: 1,
-          offset: 100, // Limit to 100 transactions
-          sort: 'desc',
-          apikey: process.env.ETHERSCAN_API_KEY // You'll need to add this to your .env file
-        }
-      });
+      while (page <= maxPages) {
+        console.log(`Fetching page ${page} of transactions...`);
+        
+        const response = await axios.get('https://api.etherscan.io/api', {
+          params: {
+            module: 'account',
+            action: 'txlist',
+            address: address,
+            startblock: startBlock,
+            endblock: endBlock,
+            page: page,
+            offset: 1000, // Maximum allowed by Etherscan
+            sort: 'desc',
+            apikey: process.env.ETHERSCAN_API_KEY
+          }
+        });
   
-      if (response.data.status !== '1') {
-        throw new Error('Etherscan API error: ' + response.data.message);
+        if (response.data.status !== '1') {
+          if (response.data.message === 'No transactions found') {
+            console.log('No more transactions found');
+            break;
+          }
+          throw new Error('Etherscan API error: ' + response.data.message);
+        }
+  
+        const transactions = response.data.result.map(tx => {
+          const ethValue = ethers.formatEther(tx.value);
+          return {
+            hash: tx.hash,
+            blockNumber: parseInt(tx.blockNumber),
+            timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
+            from: tx.from,
+            to: tx.to,
+            value: ethValue,
+            valueFormatted: parseFloat(ethValue).toFixed(6), // Format to 6 decimal places
+            gasPrice: ethers.formatUnits(tx.gasPrice, 'gwei'),
+            gasPriceFormatted: parseFloat(ethers.formatUnits(tx.gasPrice, 'gwei')).toFixed(2),
+            gasUsed: tx.gasUsed,
+            transactionFee: (parseFloat(ethers.formatUnits(tx.gasPrice, 'gwei')) * parseFloat(tx.gasUsed) / 1e9).toFixed(6)
+          };
+        });
+  
+        allTransactions.push(...transactions);
+        console.log(`Added ${transactions.length} transactions. Total: ${allTransactions.length}`);
+        
+        // If we got less than 1000 transactions, we've reached the end
+        if (transactions.length < 1000) {
+          console.log('Reached end of transactions');
+          break;
+        }
+        
+        page++;
+        
+        // Add delay to respect Etherscan rate limits (5 calls per second for free tier)
+        await new Promise(resolve => setTimeout(resolve, 250));
       }
   
-      const transactions = response.data.result.map(tx => ({
-        hash: tx.hash,
-        blockNumber: parseInt(tx.blockNumber),
-        timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
-        from: tx.from,
-        to: tx.to,
-        value: ethers.formatEther(tx.value),
-        gasPrice: ethers.formatUnits(tx.gasPrice, 'gwei'),
-        gasUsed: tx.gasUsed
-      }));
-  
-      return transactions;
+      console.log(`Total transactions fetched: ${allTransactions.length}`);
+      return allTransactions;
+      
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      return [];
+      return allTransactions; // Return partial results if available
     }
-  }
+}
 
 // Handle form submission for transactions
 app.post('/transactions', async (req, res) => {
