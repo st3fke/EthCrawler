@@ -48,39 +48,42 @@ async function getCurrentBalance(address) {
 
 // Helper function to get transactions (updated for ethers v6)
 async function getTransactions(address, startBlock, endBlock) {
-  const transactions = [];
-  
-  // Get all transaction receipts for the address
-  const logs = await provider.getLogs({
-    address: address,
-    fromBlock: startBlock,
-    toBlock: endBlock
-  });
-
-  // Process each transaction
-  for (const log of logs) {
     try {
-      const tx = await provider.getTransaction(log.transactionHash);
-      const receipt = await provider.getTransactionReceipt(log.transactionHash);
-      const block = await provider.getBlock(log.blockNumber);
-
-      transactions.push({
+      const response = await axios.get('https://api.etherscan.io/api', {
+        params: {
+          module: 'account',
+          action: 'txlist',
+          address: address,
+          startblock: startBlock,
+          endblock: endBlock,
+          page: 1,
+          offset: 100, // Limit to 100 transactions
+          sort: 'desc',
+          apikey: process.env.ETHERSCAN_API_KEY // You'll need to add this to your .env file
+        }
+      });
+  
+      if (response.data.status !== '1') {
+        throw new Error('Etherscan API error: ' + response.data.message);
+      }
+  
+      const transactions = response.data.result.map(tx => ({
         hash: tx.hash,
-        blockNumber: log.blockNumber,
-        timestamp: new Date(block.timestamp * 1000).toLocaleString(),
+        blockNumber: parseInt(tx.blockNumber),
+        timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
         from: tx.from,
         to: tx.to,
         value: ethers.formatEther(tx.value),
         gasPrice: ethers.formatUnits(tx.gasPrice, 'gwei'),
-        gasUsed: receipt.gasUsed.toString()
-      });
+        gasUsed: tx.gasUsed
+      }));
+  
+      return transactions;
     } catch (error) {
-      console.error('Error processing transaction:', error);
+      console.error('Error fetching transactions:', error);
+      return [];
     }
   }
-
-  return transactions;
-}
 
 // Handle form submission for transactions
 app.post('/transactions', async (req, res) => {
