@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Balance Check Results</title>
+  <link rel="stylesheet" href="./balance/balancestyle.css">
+</head>
+<body>
+  <h1>Balance Check Results</h1>
+  
+  <div class="balance-result">
+    <h2>Balance for 
+      <a href="https://etherscan.io/address/<%= address %>" target="_blank" class="address-link">
+        <%= address.substring(0, 8) %>...<%= address.substring(34) %>
+      </a>
+    </h2>
+    <p>at <strong><%= date %> 00:00 UTC</strong></p>
+    
+    <div class="balance-amount">
+      <%= balance %> ETH
+    </div>
+    
+    <% if (ethPrice && balanceValue) { %>
+      <div class="balance-value">
+        $<%= balanceValue %> (@ $<%= ethPrice.toFixed(2) %>/ETH)
+      </div>
+    <% } %>
+    
+    <div class="details">
+      <div class="detail-item">
+        <span class="detail-label">Block Number:</span> <%= blockNumber.toLocaleString() %>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Block Time:</span> <%= blockDate %>
+      </div>
+    </div>
+  </div>
+
+  <a href="/" class="back-link">New Search</a>
+</body>
+</html>
