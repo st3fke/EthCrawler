@@ -1,3 +1,5 @@
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('date').setAttribute('max', today);
 function switchTab(tabName) {
     // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(content => {
