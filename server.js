@@ -15,7 +15,7 @@ app.listen(process.env.PORT, () =>
 })
 
 app.get("/", (req,res)=>{
-    res.render("index", {title: "Home"});
+    res.render("index", {title: "Ethereum Transaction Crawler"});
 })
 
 app.use((req,res) => {
