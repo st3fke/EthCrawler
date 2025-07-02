@@ -1,4 +1,4 @@
-# 🧾 Ethereum Wallet Explorer
+# 🧾 EthCrawler
 
 This is a **Node.js + Express** application that allows users to:
 
@@ -23,7 +23,7 @@ This is a **Node.js + Express** application that allows users to:
 ## 📁 Project Structure
 
 ```
-ethereum-wallet-explorer/
+EthCrawler/
 ├── public/             # Static assets (CSS/images)
 ├── views/              # EJS templates
 │   ├── index.ejs       # Home page with form
@@ -52,8 +52,8 @@ Make sure you have the following installed:
 **Clone the repo:**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ethereum-wallet-explorer.git
-cd ethereum-wallet-explorer
+git clone https://github.com/st3fke/EthCrawler.git
+cd EthCrawler
 ```
 
 **Install dependencies:**
