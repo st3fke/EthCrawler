@@ -289,7 +289,7 @@
    function handleComplete(data) {
   loadingIndicator.style.display = 'none';
   progressFill.style.width = '100%';
-  progressPercentageEl.textContent = '100%'; // Add this line to update the percentage text
+  progressPercentageEl.textContent = '100%'; 
   
   let message = `Complete! Found ${data.totalTransactions.toLocaleString()} transactions across ${data.totalPages} pages.`;
   
