@@ -7,8 +7,6 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
-// Security middleware
-
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -27,15 +25,6 @@ if (!process.env.INFURA_API_KEY || !process.env.ETHERSCAN_API_KEY || !process.en
   process.exit(1);
 }
 
-// Constants
-const CONSTANTS = {
-  MAX_PAGES: 10,
-  TRANSACTIONS_PER_PAGE: 1000,
-  API_DELAY: 250, // milliseconds
-  REQUEST_TIMEOUT: 30000, // 30 seconds
-  MAX_TRANSACTION_LIMIT: 10000
-};
-
 // Initialize Ethereum provider with error handling
 let provider;
 try {
@@ -45,7 +34,7 @@ try {
   process.exit(1);
 }
 
-// Corrected token addresses and information
+// Token addresses and information
 const POPULAR_TOKENS = [
   {
     symbol: 'USDT',
@@ -89,7 +78,7 @@ const ERC20_ABI = [
 
 // Create axios instance with timeout
 const axiosInstance = axios.create({
-  timeout: CONSTANTS.REQUEST_TIMEOUT,
+  timeout: process.env.REQUEST_TIMEOUT,
   headers: {
     'User-Agent': 'Ethereum-Wallet-Explorer/1.0'
   }
@@ -199,24 +188,65 @@ async function getCurrentBalance(address) {
   }
 }
 
-// Enhanced transaction fetching with better error handling
-async function getTransactions(address, startBlock, endBlock) {
-  const allTransactions = [];
+app.get('/transactions-stream/:address/:startBlock', asyncHandler(async (req, res) => {
+  const { address, startBlock } = req.params;
+  
+  // Validate inputs
+  const addressValidation = validateEthereumAddress(address);
+  if (!addressValidation.valid) {
+    return res.status(400).json({ error: addressValidation.error });
+  }
+  
+  const currentBlock = await provider.getBlockNumber();
+  const blockValidation = validateBlockNumber(startBlock, currentBlock);
+  if (!blockValidation.valid) {
+    return res.status(400).json({ error: blockValidation.error });
+  }
+
+  // Set up Server-Sent Events
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+
+  let allTransactions = [];
   let page = 1;
+  const maxOffset = parseInt(process.env.TRANSACTIONS_PER_PAGE) || 1000;
+  const maxPages = Math.floor(10000 / maxOffset); // Calculate max pages to stay under 10k limit
   
   try {
-    while (page <= CONSTANTS.MAX_PAGES && allTransactions.length < CONSTANTS.MAX_TRANSACTION_LIMIT) {
-      console.log(`Fetching page ${page} of transactions...`);
-      
+    // Send initial data
+    const [ethPrice, currentBalance] = await Promise.all([
+      getEthPrice().catch(() => null),
+      getCurrentBalance(address).catch(() => null)
+    ]);
+
+    res.write(`data: ${JSON.stringify({
+      type: 'initial',
+      address,
+      startBlock: blockValidation.value,
+      currentBlock,
+      ethPrice,
+      currentBalance,
+      balanceValue: ethPrice && currentBalance ? (ethPrice * parseFloat(currentBalance)).toFixed(2) : null,
+      maxPages,
+      maxTransactions: maxPages * maxOffset
+    })}\n\n`);
+
+    // Stream transactions with pagination limit
+    while (page <= maxPages) {
       const response = await axiosInstance.get('https://api.etherscan.io/api', {
         params: {
           module: 'account',
           action: 'txlist',
           address: address,
-          startblock: startBlock,
-          endblock: endBlock,
+          startblock: blockValidation.value,
+          endblock: currentBlock,
           page: page,
-          offset: CONSTANTS.TRANSACTIONS_PER_PAGE,
+          offset: maxOffset,
           sort: 'desc',
           apikey: process.env.ETHERSCAN_API_KEY
         }
@@ -224,7 +254,14 @@ async function getTransactions(address, startBlock, endBlock) {
 
       if (response.data.status !== '1') {
         if (response.data.message === 'No transactions found') {
-          console.log('No more transactions found');
+          break;
+        }
+        // Handle the specific pagination error
+        if (response.data.message && response.data.message.includes('Result window is too large')) {
+          res.write(`data: ${JSON.stringify({
+            type: 'warning',
+            message: `Reached Etherscan API limit. Showing first ${allTransactions.length} transactions. For complete history, try a smaller block range.`
+          })}\n\n`);
           break;
         }
         throw new Error(`Etherscan API error: ${response.data.message}`);
@@ -252,33 +289,47 @@ async function getTransactions(address, startBlock, endBlock) {
       });
 
       allTransactions.push(...transactions);
-      console.log(`Added ${transactions.length} transactions. Total: ${allTransactions.length}`);
-      
-      if (transactions.length < CONSTANTS.TRANSACTIONS_PER_PAGE) {
-        console.log('Reached end of transactions');
+
+      // Send batch of transactions
+      res.write(`data: ${JSON.stringify({
+        type: 'transactions',
+        transactions: transactions,
+        page: page,
+        totalCount: allTransactions.length,
+        batchSize: transactions.length,
+        reachedLimit: page >= maxPages,
+        isLastPage: transactions.length < maxOffset
+      })}\n\n`);
+
+      // If we got fewer transactions than requested, we've reached the end
+      if (transactions.length < maxOffset) {
         break;
       }
-      
+
       page++;
-      
-      // Respect Etherscan rate limits
-      await new Promise(resolve => setTimeout(resolve, CONSTANTS.API_DELAY));
+      await new Promise(resolve => setTimeout(resolve, process.env.API_DELAY || 200));
     }
 
-    console.log(`Total transactions fetched: ${allTransactions.length}`);
-    return allTransactions;
-    
+    // Send completion signal
+    res.write(`data: ${JSON.stringify({
+      type: 'complete',
+      totalTransactions: allTransactions.length,
+      totalPages: page - 1,
+      limitReached: page > maxPages,
+      maxPossibleTransactions: maxPages * maxOffset
+    })}\n\n`);
+
   } catch (error) {
-    console.error('Error fetching transactions:', error.message);
-    if (allTransactions.length > 0) {
-      console.log(`Returning ${allTransactions.length} partial results`);
-      return allTransactions;
-    }
-    throw new Error('Failed to fetch transactions');
+    res.write(`data: ${JSON.stringify({
+      type: 'error',
+      error: error.message
+    })}\n\n`);
   }
-}
 
-// Handle form submission for transactions
+  res.end();
+}));
+
+// 2. Modified regular route to render initial page
 app.post('/transactions', asyncHandler(async (req, res) => {
   const { address, startBlock } = req.body;
   
@@ -297,40 +348,13 @@ app.post('/transactions', asyncHandler(async (req, res) => {
     return res.render('index', { error: blockValidation.error });
   }
 
-  // Get all data in parallel with proper error handling
-  const results = await Promise.allSettled([
-    getTransactions(address, blockValidation.value, currentBlock),
-    getEthPrice(),
-    getCurrentBalance(address)
-  ]);
-
-  const transactions = results[0].status === 'fulfilled' ? results[0].value : [];
-  const ethPrice = results[1].status === 'fulfilled' ? results[1].value : null;
-  const currentBalance = results[2].status === 'fulfilled' ? results[2].value : null;
-
-  // Check if any critical operations failed
-  if (results[0].status === 'rejected') {
-    return res.render('index', { 
-      error: 'Failed to fetch transactions. Please try again later.' 
-    });
-  }
-
+  // Render the streaming results page
   res.render('results', {
     address,
     startBlock: blockValidation.value,
-    currentBlock,
-    transactions,
-    count: transactions.length,
-    ethPrice,
-    currentBalance,
-    balanceValue: ethPrice && currentBalance ? (ethPrice * parseFloat(currentBalance)).toFixed(2) : null,
-    errors: {
-      priceError: results[1].status === 'rejected',
-      balanceError: results[2].status === 'rejected'
-    }
+    currentBlock
   });
 }));
-
 // Helper function to get token balance at specific block
 async function getTokenBalanceAtBlock(walletAddress, tokenAddress, blockNumber, decimals) {
   try {
@@ -384,7 +408,7 @@ app.post('/balance-at-date', asyncHandler(async (req, res) => {
       return res.render('index', { error: addressValidation.error });
     }
     
-    // 2. Validate date - THIS WAS MISSING IN YOUR CODE
+    // 2. Validate date
     const dateValidation = validateDate(date);
     if (!dateValidation.valid) {
       return res.render('index', { error: dateValidation.error });

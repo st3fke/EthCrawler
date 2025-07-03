@@ -3,23 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transaction Results</title>
+  <title>Transaction Results - Loading...</title>
   <link rel="stylesheet" href="./style/resultsstyle.css">
 </head>
 <body>
-  <h1>Transaction Results</h1>
+  <div class="header">
+    <h1>Transaction Results</h1> <a href="/" class="back-link">New Search</a>
+  </div>
   
-  <div class="balance-overview">
+  
+  <!-- Loading Indicator -->
+  <div id="loading-indicator" class="loading-indicator">
+    <div class="spinner"></div>
+    <div>
+      <div id="loading-text">Connecting to blockchain...</div>
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- API Limit Info -->
+  <div id="limit-info" class="limit-info" style="display: none;">
+    <strong>Note:</strong> Due to Etherscan API limits, showing up to <span id="max-transactions"></span> transactions. 
+    For complete history, try a smaller block range.
+  </div>
+  
+  <!-- Balance Overview (filled dynamically) -->
+  <div id="balance-overview" class="balance-overview" style="display: none;">
     <div class="balance-section">
       <div class="balance-title">Ethereum Balance</div>
-      <div class="balance-amount">
-        <%= currentBalance %> ETH
+      <div id="balance-amount" class="balance-amount">
+        Loading...
       </div>
-      <% if (ethPrice && balanceValue) { %>
-        <div class="balance-value">
-          $<%= balanceValue %> (@ $<%= ethPrice.toFixed(2) %>/ETH)
-        </div>
-      <% } %>
+      <div id="balance-value" class="balance-value">
+        Loading...
+      </div>
     </div>
     
     <div class="info-section">
@@ -37,13 +56,34 @@
       </div>
       <div class="info-item">
         <span class="info-label">Transactions:</span>
-        <span class="info-value"><%= count.toLocaleString() %></span>
+        <span id="transaction-count" class="info-value">0</span>
       </div>
     </div>
   </div>
-
-  <% if (transactions.length > 0) { %>
-    <table>
+  
+  <!-- Live Stats -->
+  <div id="live-stats" class="stats-row" style="display: none;">
+    <div class="stat-item">
+      <div class="stat-label">Pages Loaded</div>
+      <div id="pages-loaded" class="stat-value">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Current Batch</div>
+      <div id="current-batch" class="stat-value">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Loading Speed</div>
+      <div id="loading-speed" class="stat-value">0 tx/s</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Progress</div>
+      <div id="progress-percentage" class="stat-value">0%</div>
+    </div>
+  </div>
+  
+  <!-- Transactions Table -->
+  <div id="transactions-container" style="display: none;">
+    <table id="transactions-table">
       <thead>
         <tr>
           <th>Block</th>
@@ -55,42 +95,241 @@
           <th>Tx Hash</th>
         </tr>
       </thead>
-      <tbody>
-        <% transactions.forEach(tx => { %>
-          <tr>
-            <td><%= tx.blockNumber.toLocaleString() %></td>
-            <td><%= tx.timestamp %></td>
-            <td>
-              <a href="https://etherscan.io/address/<%= tx.from %>" target="_blank" class="address-link">
-                <%= tx.from.substring(0, 8) %>...<%= tx.from.substring(34) %>
-              </a>
-            </td>
-            <td>
-              <% if (tx.to) { %>
-                <a href="https://etherscan.io/address/<%= tx.to %>" target="_blank" class="address-link">
-                  <%= tx.to.substring(0, 8) %>...<%= tx.to.substring(34) %>
-                </a>
-              <% } else { %>
-                Contract Creation
-              <% } %>
-            </td>
-            <td><%= parseFloat(tx.value).toFixed(6) %></td>
-            <td><%= tx.gasPrice %></td>
-            <td>
-              <a href="https://etherscan.io/tx/<%= tx.hash %>" target="_blank" class="address-link">
-                <%= tx.hash.substring(0, 10) %>...
-              </a>
-            </td>
-          </tr>
-        <% }); %>
+      <tbody id="transactions-tbody">
+        <!-- Transactions will be added here dynamically -->
       </tbody>
     </table>
-  <% } else { %>
-    <div class="no-transactions">
-      <p>No transactions found for this address in the specified block range.</p>
-    </div>
-  <% } %>
-
+  </div>
+  
+  <!-- Scroll Control Button -->
+  <button id="scroll-control" class="scroll-control" style="display: none;">
+    📌 Stay at Top
+  </button>
+  
+  <!-- Messages -->
+  <div id="error-message" class="error-message" style="display: none;"></div>
+  <div id="warning-message" class="warning-message" style="display: none;"></div>
+  <div id="complete-message" class="complete-message" style="display: none;"></div>
+  
   <a href="/" class="back-link">New Search</a>
+  
+  <script>
+    // Initialize EventSource for Server-Sent Events
+    const eventSource = new EventSource('/transactions-stream/<%= address %>/<%= startBlock %>');
+    
+    let totalTransactions = 0;
+    let startTime = Date.now();
+    let pagesLoaded = 0;
+    let autoScrollEnabled = false;
+    let maxPages = 0;
+    let maxTransactions = 0;
+    
+    // DOM elements
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const loadingText = document.getElementById('loading-text');
+    const progressFill = document.getElementById('progress-fill');
+    const balanceOverview = document.getElementById('balance-overview');
+    const transactionsContainer = document.getElementById('transactions-container');
+    const transactionsTbody = document.getElementById('transactions-tbody');
+    const transactionCount = document.getElementById('transaction-count');
+    const liveStats = document.getElementById('live-stats');
+    const pagesLoadedEl = document.getElementById('pages-loaded');
+    const currentBatchEl = document.getElementById('current-batch');
+    const loadingSpeedEl = document.getElementById('loading-speed');
+    const progressPercentageEl = document.getElementById('progress-percentage');
+    const errorMessage = document.getElementById('error-message');
+    const warningMessage = document.getElementById('warning-message');
+    const completeMessage = document.getElementById('complete-message');
+    const scrollControl = document.getElementById('scroll-control');
+    const limitInfo = document.getElementById('limit-info');
+    const maxTransactionsEl = document.getElementById('max-transactions');
+    
+    // Scroll control functionality
+    scrollControl.addEventListener('click', function() {
+      autoScrollEnabled = !autoScrollEnabled;
+      updateScrollButton();
+    });
+    
+    function updateScrollButton() {
+      if (autoScrollEnabled) {
+        scrollControl.textContent = '📍 Auto-scroll: ON';
+        scrollControl.style.background = '#28a745';
+      } else {
+        scrollControl.textContent = '📌 Stay at Top';
+        scrollControl.style.background = '#007bff';
+      }
+    }
+    
+    // Handle different types of messages
+    eventSource.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      
+      switch(data.type) {
+        case 'initial':
+          handleInitialData(data);
+          break;
+        case 'transactions':
+          handleTransactionBatch(data);
+          break;
+        case 'warning':
+          handleWarning(data);
+          break;
+        case 'complete':
+          handleComplete(data);
+          break;
+        case 'error':
+          handleError(data);
+          break;
+      }
+    };
+    
+    function handleInitialData(data) {
+      loadingText.textContent = 'Loading transactions...';
+      maxPages = data.maxPages || 10;
+      maxTransactions = data.maxTransactions || 10000;
+      
+      // Show limit info
+      maxTransactionsEl.textContent = maxTransactions.toLocaleString();
+      limitInfo.style.display = 'block';
+      
+      // Show balance info
+      document.getElementById('balance-amount').textContent = `${data.currentBalance} ETH`;
+      if (data.ethPrice && data.balanceValue) {
+        document.getElementById('balance-value').textContent = 
+          `$${data.balanceValue} (@ $${data.ethPrice.toFixed(2)}/ETH)`;
+      }
+      
+      balanceOverview.style.display = 'block';
+      liveStats.style.display = 'flex';
+      transactionsContainer.style.display = 'block';
+      scrollControl.style.display = 'block';
+      updateScrollButton();
+    }
+    
+    function handleTransactionBatch(data) {
+      pagesLoaded = data.page;
+      totalTransactions = data.totalCount;
+      
+      // Store current scroll position
+      const currentScrollPosition = window.scrollY;
+      
+      // Update progress
+      const elapsedTime = (Date.now() - startTime) / 1000;
+      const speed = Math.round(totalTransactions / elapsedTime);
+      const progressPercentage = Math.round((data.page / maxPages) * 100);
+      
+      loadingText.textContent = `Loading page ${data.page}... (${data.totalCount} transactions found)`;
+      transactionCount.textContent = data.totalCount.toLocaleString();
+      pagesLoadedEl.textContent = data.page;
+      currentBatchEl.textContent = data.batchSize;
+      loadingSpeedEl.textContent = `${speed} tx/s`;
+      progressPercentageEl.textContent = `${progressPercentage}%`;
+      
+      // Update progress bar
+      progressFill.style.width = `${progressPercentage}%`;
+      
+      // Show warning if we're approaching the limit
+      if (data.reachedLimit && !data.isLastPage) {
+        warningMessage.style.display = 'block';
+        warningMessage.textContent = 'Reached Etherscan API limit. Showing partial results. Try a smaller block range for complete history.';
+      }
+      
+      // Add batch separator
+      if (data.page > 1) {
+        const separator = document.createElement('tr');
+        separator.className = 'batch-separator';
+        separator.innerHTML = `<td colspan="7">Page ${data.page} - ${data.batchSize} transactions</td>`;
+        transactionsTbody.appendChild(separator);
+      }
+      
+      // Add transactions
+      data.transactions.forEach(tx => {
+        const row = document.createElement('tr');
+        row.className = 'transaction-row';
+        row.innerHTML = `
+          <td>${tx.blockNumber.toLocaleString()}</td>
+          <td>${tx.timestamp}</td>
+          <td>
+            <a href="https://etherscan.io/address/${tx.from}" target="_blank" class="address-link">
+              ${tx.from.substring(0, 8)}...${tx.from.substring(34)}
+            </a>
+          </td>
+          <td>
+            ${tx.to ? 
+              `<a href="https://etherscan.io/address/${tx.to}" target="_blank" class="address-link">
+                ${tx.to.substring(0, 8)}...${tx.to.substring(34)}
+              </a>` : 
+              'Contract Creation'
+            }
+          </td>
+          <td>${parseFloat(tx.value).toFixed(6)}</td>
+          <td>${tx.gasPriceFormatted}</td>
+          <td>
+            <a href="https://etherscan.io/tx/${tx.hash}" target="_blank" class="address-link">
+              ${tx.hash.substring(0, 10)}...
+            </a>
+          </td>
+        `;
+        transactionsTbody.appendChild(row);
+      });
+      
+      // Handle scrolling based on user preference
+      if (autoScrollEnabled && data.page > 1) {
+        window.scrollTo(0, document.body.scrollHeight);
+      } else {
+        window.scrollTo(0, currentScrollPosition);
+      }
+    }
+    
+    function handleWarning(data) {
+      warningMessage.style.display = 'block';
+      warningMessage.textContent = data.message;
+    }
+    
+   function handleComplete(data) {
+  loadingIndicator.style.display = 'none';
+  progressFill.style.width = '100%';
+  progressPercentageEl.textContent = '100%'; // Add this line to update the percentage text
+  
+  let message = `Complete! Found ${data.totalTransactions.toLocaleString()} transactions across ${data.totalPages} pages.`;
+  
+  if (data.limitReached) {
+    message += ` (Limited by Etherscan API - showing first ${data.totalTransactions.toLocaleString()} of potentially more transactions)`;
+  }
+  
+  completeMessage.style.display = 'block';
+  completeMessage.textContent = message;
+  
+  // Update title
+  document.title = `Transaction Results - ${data.totalTransactions.toLocaleString()} transactions`;
+  
+  // Hide scroll control when complete
+  scrollControl.style.display = 'none';
+  
+  eventSource.close();
+}
+    
+    function handleError(data) {
+      loadingIndicator.style.display = 'none';
+      errorMessage.style.display = 'block';
+      errorMessage.textContent = `Error: ${data.error}`;
+      scrollControl.style.display = 'none';
+      eventSource.close();
+    }
+    
+    // Handle connection errors
+    eventSource.onerror = function(event) {
+      loadingIndicator.style.display = 'none';
+      errorMessage.style.display = 'block';
+      errorMessage.textContent = 'Connection error. Please try again.';
+      scrollControl.style.display = 'none';
+      eventSource.close();
+    };
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+      eventSource.close();
+    });
+  </script>
 </body>
 </html>
