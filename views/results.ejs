@@ -11,7 +11,6 @@
     <h1>Transaction Results</h1> <a href="/" class="back-link">New Search</a>
   </div>
   
-  
   <!-- Loading Indicator -->
   <div id="loading-indicator" class="loading-indicator">
     <div class="spinner"></div>
@@ -23,14 +22,8 @@
     </div>
   </div>
   
-  <!-- API Limit Info -->
-  <div id="limit-info" class="limit-info" style="display: none;">
-    <strong>Note:</strong> Due to Etherscan API limits, showing up to <span id="max-transactions"></span> transactions. 
-    For complete history, try a smaller block range.
-  </div>
-  
-  <!-- Balance Overview (filled dynamically) -->
-  <div id="balance-overview" class="balance-overview" style="display: none;">
+  <!-- Balance Overview -->
+  <div id="balance-overview" class="balance-overview">
     <div class="balance-section">
       <div class="balance-title">Ethereum Balance</div>
       <div id="balance-amount" class="balance-amount">
@@ -62,7 +55,7 @@
   </div>
   
   <!-- Live Stats -->
-  <div id="live-stats" class="stats-row" style="display: none;">
+  <div id="live-stats" class="stats-row">
     <div class="stat-item">
       <div class="stat-label">Pages Loaded</div>
       <div id="pages-loaded" class="stat-value">0</div>
@@ -75,14 +68,10 @@
       <div class="stat-label">Loading Speed</div>
       <div id="loading-speed" class="stat-value">0 tx/s</div>
     </div>
-    <div class="stat-item">
-      <div class="stat-label">Progress</div>
-      <div id="progress-percentage" class="stat-value">0%</div>
-    </div>
   </div>
   
   <!-- Transactions Table -->
-  <div id="transactions-container" style="display: none;">
+  <div id="transactions-container">
     <table id="transactions-table">
       <thead>
         <tr>
@@ -102,14 +91,14 @@
   </div>
   
   <!-- Scroll Control Button -->
-  <button id="scroll-control" class="scroll-control" style="display: none;">
+  <button id="scroll-control" class="scroll-control">
     📌 Stay at Top
   </button>
   
   <!-- Messages -->
-  <div id="error-message" class="error-message" style="display: none;"></div>
-  <div id="warning-message" class="warning-message" style="display: none;"></div>
-  <div id="complete-message" class="complete-message" style="display: none;"></div>
+  <div id="error-message" class="error-message"></div>
+  <div id="warning-message" class="warning-message"></div>
+  <div id="complete-message" class="complete-message"></div>
   
   <a href="/" class="back-link">New Search</a>
   
@@ -121,13 +110,10 @@
     let startTime = Date.now();
     let pagesLoaded = 0;
     let autoScrollEnabled = false;
-    let maxPages = 0;
-    let maxTransactions = 0;
     
     // DOM elements
     const loadingIndicator = document.getElementById('loading-indicator');
     const loadingText = document.getElementById('loading-text');
-    const progressFill = document.getElementById('progress-fill');
     const balanceOverview = document.getElementById('balance-overview');
     const transactionsContainer = document.getElementById('transactions-container');
     const transactionsTbody = document.getElementById('transactions-tbody');
@@ -136,13 +122,10 @@
     const pagesLoadedEl = document.getElementById('pages-loaded');
     const currentBatchEl = document.getElementById('current-batch');
     const loadingSpeedEl = document.getElementById('loading-speed');
-    const progressPercentageEl = document.getElementById('progress-percentage');
     const errorMessage = document.getElementById('error-message');
     const warningMessage = document.getElementById('warning-message');
     const completeMessage = document.getElementById('complete-message');
     const scrollControl = document.getElementById('scroll-control');
-    const limitInfo = document.getElementById('limit-info');
-    const maxTransactionsEl = document.getElementById('max-transactions');
     
     // Scroll control functionality
     scrollControl.addEventListener('click', function() {
@@ -185,12 +168,6 @@
     
     function handleInitialData(data) {
       loadingText.textContent = 'Loading transactions...';
-      maxPages = data.maxPages || 10;
-      maxTransactions = data.maxTransactions || 10000;
-      
-      // Show limit info
-      maxTransactionsEl.textContent = maxTransactions.toLocaleString();
-      limitInfo.style.display = 'block';
       
       // Show balance info
       document.getElementById('balance-amount').textContent = `${data.currentBalance} ETH`;
@@ -213,32 +190,21 @@
       // Store current scroll position
       const currentScrollPosition = window.scrollY;
       
-      // Update progress
+      // Calculate loading speed
       const elapsedTime = (Date.now() - startTime) / 1000;
       const speed = Math.round(totalTransactions / elapsedTime);
-      const progressPercentage = Math.round((data.page / maxPages) * 100);
       
       loadingText.textContent = `Loading page ${data.page}... (${data.totalCount} transactions found)`;
       transactionCount.textContent = data.totalCount.toLocaleString();
       pagesLoadedEl.textContent = data.page;
-      currentBatchEl.textContent = data.batchSize;
+      currentBatchEl.textContent = data.transactions.length;
       loadingSpeedEl.textContent = `${speed} tx/s`;
-      progressPercentageEl.textContent = `${progressPercentage}%`;
       
-      // Update progress bar
-      progressFill.style.width = `${progressPercentage}%`;
-      
-      // Show warning if we're approaching the limit
-      if (data.reachedLimit && !data.isLastPage) {
-        warningMessage.style.display = 'block';
-        warningMessage.textContent = 'Reached Etherscan API limit. Showing partial results. Try a smaller block range for complete history.';
-      }
-      
-      // Add batch separator
-      if (data.page > 1) {
+      // Add batch separator every 10 pages
+      if (data.page > 1 && data.page % 10 === 1) {
         const separator = document.createElement('tr');
         separator.className = 'batch-separator';
-        separator.innerHTML = `<td colspan="7">Page ${data.page} - ${data.batchSize} transactions</td>`;
+        separator.innerHTML = `<td colspan="7">Batch ${Math.floor(data.page/10)}</td>`;
         transactionsTbody.appendChild(separator);
       }
       
@@ -284,30 +250,21 @@
     function handleWarning(data) {
       warningMessage.style.display = 'block';
       warningMessage.textContent = data.message;
+      setTimeout(() => {
+        warningMessage.style.display = 'none';
+      }, 5000);
     }
     
-   function handleComplete(data) {
-  loadingIndicator.style.display = 'none';
-  progressFill.style.width = '100%';
-  progressPercentageEl.textContent = '100%'; 
-  
-  let message = `Complete! Found ${data.totalTransactions.toLocaleString()} transactions across ${data.totalPages} pages.`;
-  
-  if (data.limitReached) {
-    message += ` (Limited by Etherscan API - showing first ${data.totalTransactions.toLocaleString()} of potentially more transactions)`;
-  }
-  
-  completeMessage.style.display = 'block';
-  completeMessage.textContent = message;
-  
-  // Update title
-  document.title = `Transaction Results - ${data.totalTransactions.toLocaleString()} transactions`;
-  
-  // Hide scroll control when complete
-  scrollControl.style.display = 'none';
-  
-  eventSource.close();
-}
+    function handleComplete(data) {
+      loadingIndicator.style.display = 'none';
+      
+      completeMessage.style.display = 'block';
+      completeMessage.textContent = `Complete! Found ${data.totalTransactions.toLocaleString()} transactions.`;
+      
+      document.title = `Transaction Results - ${data.totalTransactions.toLocaleString()} transactions`;
+      scrollControl.style.display = 'none';
+      eventSource.close();
+    }
     
     function handleError(data) {
       loadingIndicator.style.display = 'none';
@@ -316,15 +273,6 @@
       scrollControl.style.display = 'none';
       eventSource.close();
     }
-    
-    // Handle connection errors
-    eventSource.onerror = function(event) {
-      loadingIndicator.style.display = 'none';
-      errorMessage.style.display = 'block';
-      errorMessage.textContent = 'Connection error. Please try again.';
-      scrollControl.style.display = 'none';
-      eventSource.close();
-    };
     
     // Clean up on page unload
     window.addEventListener('beforeunload', function() {

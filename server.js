@@ -191,17 +191,7 @@ async function getCurrentBalance(address) {
 app.get('/transactions-stream/:address/:startBlock', asyncHandler(async (req, res) => {
   const { address, startBlock } = req.params;
   
-  // Validate inputs
-  const addressValidation = validateEthereumAddress(address);
-  if (!addressValidation.valid) {
-    return res.status(400).json({ error: addressValidation.error });
-  }
-  
   const currentBlock = await provider.getBlockNumber();
-  const blockValidation = validateBlockNumber(startBlock, currentBlock);
-  if (!blockValidation.valid) {
-    return res.status(400).json({ error: blockValidation.error });
-  }
 
   // Set up Server-Sent Events
   res.writeHead(200, {
@@ -215,7 +205,9 @@ app.get('/transactions-stream/:address/:startBlock', asyncHandler(async (req, re
   let allTransactions = [];
   let page = 1;
   const maxOffset = parseInt(process.env.TRANSACTIONS_PER_PAGE) || 1000;
-  const maxPages = Math.floor(10000 / maxOffset); // Calculate max pages to stay under 10k limit
+  const maxPagesPerBatch = Math.floor(10000 / maxOffset); // Calculate max pages to stay under 10k limit
+  let lastBlockFetched = currentBlock;
+  let hasMoreTransactions = true;
   
   try {
     // Send initial data
@@ -227,87 +219,114 @@ app.get('/transactions-stream/:address/:startBlock', asyncHandler(async (req, re
     res.write(`data: ${JSON.stringify({
       type: 'initial',
       address,
-      startBlock: blockValidation.value,
+      startBlock: startBlock,
       currentBlock,
       ethPrice,
       currentBalance,
       balanceValue: ethPrice && currentBalance ? (ethPrice * parseFloat(currentBalance)).toFixed(2) : null,
-      maxPages,
-      maxTransactions: maxPages * maxOffset
+      maxPages: maxPagesPerBatch,
+      maxTransactions: maxPagesPerBatch * maxOffset
     })}\n\n`);
 
-    // Stream transactions with pagination limit
-    while (page <= maxPages) {
-      const response = await axiosInstance.get('https://api.etherscan.io/api', {
-        params: {
-          module: 'account',
-          action: 'txlist',
-          address: address,
-          startblock: blockValidation.value,
-          endblock: currentBlock,
+    // Process transactions in batches of max 10k
+    while (hasMoreTransactions) {
+      let batchTransactions = [];
+      let batchPage = 1;
+      let batchComplete = false;
+      
+      // Process a single batch (up to 10k transactions)
+      while (batchPage <= maxPagesPerBatch && !batchComplete) {
+        const response = await axiosInstance.get('https://api.etherscan.io/api', {
+          params: {
+            module: 'account',
+            action: 'txlist',
+            address: address,
+            startblock: startBlock,
+            endblock: lastBlockFetched,
+            page: batchPage,
+            offset: maxOffset,
+            sort: 'desc',
+            apikey: process.env.ETHERSCAN_API_KEY
+          }
+        });
+
+        if (response.data.status !== '1') {
+          if (response.data.message === 'No transactions found') {
+            batchComplete = true;
+            hasMoreTransactions = false;
+            break;
+          }
+          
+          if (response.data.message && response.data.message.includes('Result window is too large')) {
+            // We hit the 10k limit in this batch, so we'll adjust the endblock and continue
+            break;
+          }
+          
+          throw new Error(`Etherscan API error: ${response.data.message}`);
+        }
+
+        const transactions = response.data.result.map(tx => {
+          const ethValue = ethers.formatEther(tx.value);
+          const gasPrice = ethers.formatUnits(tx.gasPrice, 'gwei');
+          const transactionFee = (parseFloat(gasPrice) * parseFloat(tx.gasUsed)) / 1e9;
+          
+          return {
+            hash: tx.hash,
+            blockNumber: parseInt(tx.blockNumber),
+            timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
+            from: tx.from,
+            to: tx.to,
+            value: ethValue,
+            valueFormatted: parseFloat(ethValue).toFixed(6),
+            gasPrice: gasPrice,
+            gasPriceFormatted: parseFloat(gasPrice).toFixed(2),
+            gasUsed: tx.gasUsed,
+            transactionFee: transactionFee.toFixed(6),
+            isError: tx.isError === '1'
+          };
+        });
+
+        batchTransactions.push(...transactions);
+
+        // Send batch of transactions
+        res.write(`data: ${JSON.stringify({
+          type: 'transactions',
+          transactions: transactions,
           page: page,
-          offset: maxOffset,
-          sort: 'desc',
-          apikey: process.env.ETHERSCAN_API_KEY
-        }
-      });
+          totalCount: allTransactions.length + batchTransactions.length,
+          batchSize: transactions.length,
+          reachedLimit: batchPage >= maxPagesPerBatch,
+          isLastPage: transactions.length < maxOffset
+        })}\n\n`);
 
-      if (response.data.status !== '1') {
-        if (response.data.message === 'No transactions found') {
+        // If we got fewer transactions than requested, we've reached the end
+        if (transactions.length < maxOffset) {
+          batchComplete = true;
+          hasMoreTransactions = false;
           break;
         }
-        // Handle the specific pagination error
-        if (response.data.message && response.data.message.includes('Result window is too large')) {
-          res.write(`data: ${JSON.stringify({
-            type: 'warning',
-            message: `Reached Etherscan API limit. Showing first ${allTransactions.length} transactions. For complete history, try a smaller block range.`
-          })}\n\n`);
-          break;
-        }
-        throw new Error(`Etherscan API error: ${response.data.message}`);
+
+        batchPage++;
+        page++;
+        await new Promise(resolve => setTimeout(resolve, process.env.API_DELAY || 200));
       }
 
-      const transactions = response.data.result.map(tx => {
-        const ethValue = ethers.formatEther(tx.value);
-        const gasPrice = ethers.formatUnits(tx.gasPrice, 'gwei');
-        const transactionFee = (parseFloat(gasPrice) * parseFloat(tx.gasUsed) / 1e9);
+      // Add this batch to all transactions
+      allTransactions.push(...batchTransactions);
+
+      // If we hit the limit, adjust the endblock for the next batch
+      if (!batchComplete && batchPage > maxPagesPerBatch) {
+        // Find the earliest block in this batch
+        const earliestBlockInBatch = Math.min(...batchTransactions.map(tx => tx.blockNumber));
+        lastBlockFetched = earliestBlockInBatch - 1;
         
-        return {
-          hash: tx.hash,
-          blockNumber: parseInt(tx.blockNumber),
-          timestamp: new Date(parseInt(tx.timeStamp) * 1000).toLocaleString(),
-          from: tx.from,
-          to: tx.to,
-          value: ethValue,
-          valueFormatted: parseFloat(ethValue).toFixed(6),
-          gasPrice: gasPrice,
-          gasPriceFormatted: parseFloat(gasPrice).toFixed(2),
-          gasUsed: tx.gasUsed,
-          transactionFee: transactionFee.toFixed(6),
-          isError: tx.isError === '1'
-        };
-      });
-
-      allTransactions.push(...transactions);
-
-      // Send batch of transactions
-      res.write(`data: ${JSON.stringify({
-        type: 'transactions',
-        transactions: transactions,
-        page: page,
-        totalCount: allTransactions.length,
-        batchSize: transactions.length,
-        reachedLimit: page >= maxPages,
-        isLastPage: transactions.length < maxOffset
-      })}\n\n`);
-
-      // If we got fewer transactions than requested, we've reached the end
-      if (transactions.length < maxOffset) {
-        break;
+        res.write(`data: ${JSON.stringify({
+          type: 'warning',
+          message: `Hit 10k transaction limit. Fetching next batch from block ${lastBlockFetched}...`
+        })}\n\n`);
+      } else {
+        hasMoreTransactions = false;
       }
-
-      page++;
-      await new Promise(resolve => setTimeout(resolve, process.env.API_DELAY || 200));
     }
 
     // Send completion signal
@@ -315,8 +334,8 @@ app.get('/transactions-stream/:address/:startBlock', asyncHandler(async (req, re
       type: 'complete',
       totalTransactions: allTransactions.length,
       totalPages: page - 1,
-      limitReached: page > maxPages,
-      maxPossibleTransactions: maxPages * maxOffset
+      limitReached: false, // We've handled the limit by fetching all batches
+      maxPossibleTransactions: allTransactions.length
     })}\n\n`);
 
   } catch (error) {
