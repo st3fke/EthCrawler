@@ -3,53 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ethereum Transaction Crawler</title>
+  <title>Ethereum Transaction Explorer</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="./style/indexstyle.css">
 </head>
 <body>
-  <h1>Ethereum Transaction Crawler</h1>
+  <div class="container">
+    <header>
+      <h1>Ethereum Transaction Explorer</h1>
+      <p class="subtitle">Explore wallet transactions and historical balances</p>
+    </header>
 
-  <% if (locals.error) { %>
-    <div class="error"><%= error %></div>
-  <% } %>
+    <% if (locals.error) { %>
+      <div class="error">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 8V12V8ZM12 16H12.01H12ZM21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#FF3860" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span><%= error %></span>
+      </div>
+    <% } %>
 
-  <div class="form-container">
-    <div class="tabs">
-      <div class="tab active" data-tab="transactions">Transactions</div>
-      <div class="tab" data-tab="balance">Balance Check</div>
+    <div class="form-container">
+      <div class="tabs-container">
+        <div class="tabs">
+          <div class="tab active" data-tab="transactions">Transaction History</div>
+          <div class="tab" data-tab="balance">Balance Check</div>
+        </div>
+      </div>
+
+      <form id="transactions-form" class="tab-content active" method="POST" action="/transactions">
+        <div class="form-group">
+          <label for="address">Ethereum Wallet Address</label>
+          <input type="text" id="address" name="address" required 
+                placeholder="0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f">
+        </div>
+        
+        <div class="form-group">
+          <label for="startBlock">Starting Block Number</label>
+          <input type="number" id="startBlock" name="startBlock" required 
+                placeholder="e.g. 9000000">
+        </div>
+        
+        <button type="submit">
+          <svg class="eth-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#627EEA"/>
+            <path d="M12.3735 3V9.6525L17.9963 12.165L12.3735 3Z" fill="white" fill-opacity="0.602"/>
+            <path d="M12.3735 3L6.75 12.165L12.3735 9.6525V3Z" fill="white"/>
+            <path d="M12.3735 16.476V20.9963L18 13.212L12.3735 16.476Z" fill="white" fill-opacity="0.602"/>
+            <path d="M12.3735 20.9963V16.4753L6.75 13.212L12.3735 20.9963Z" fill="white"/>
+            <path d="M12.3735 15.4298L17.9963 12.165L12.3735 9.654V15.4298Z" fill="white" fill-opacity="0.2"/>
+            <path d="M6.75 12.165L12.3735 15.4298V9.654L6.75 12.165Z" fill="white" fill-opacity="0.602"/>
+          </svg>
+          Get Transactions
+        </button>
+      </form>
+
+      <form id="balance-form" class="tab-content" method="POST" action="/balance-at-date">
+        <div class="form-group">
+          <label for="balance-address">Ethereum Wallet Address</label>
+          <input type="text" id="balance-address" name="address" required 
+                placeholder="0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f">
+        </div>
+        
+        <div class="form-group">
+          <label for="date">Historical Date (UTC)</label>
+          <input type="date" id="date" name="date" required>
+        </div>
+        
+        <button type="submit">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 6V12L16 14" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Check Historical Balance
+        </button>
+      </form>
     </div>
-
-    <form id="transactions-form" class="tab-content active" method="POST" action="/transactions">
-      <div class="form-group">
-        <label for="address">Ethereum Wallet Address:</label>
-        <input type="text" id="address" name="address" required 
-              placeholder="0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f">
-      </div>
-      
-      <div class="form-group">
-        <label for="startBlock">Starting Block Number:</label>
-        <input type="number" id="startBlock" name="startBlock" required 
-              placeholder="9000000">
-      </div>
-      
-      <button type="submit">Get Transactions</button>
-    </form>
-
-    <form id="balance-form" class="tab-content" method="POST" action="/balance-at-date">
-      <div class="form-group">
-        <label for="balance-address">Ethereum Wallet Address:</label>
-        <input type="text" id="balance-address" name="address" required 
-              placeholder="0xaa7a9ca87d3694b5755f213b5d04094b8d0f0a6f">
-      </div>
-      
-      <div class="form-group">
-        <label for="date">Date (UTC):</label>
-        <input type="date" id="date" name="date" required>
-      </div>
-      
-      <button type="submit">Check Balance</button>
-    </form>
   </div>
-  <script src="./script/index.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const tabs = document.querySelectorAll('.tab');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Remove active class from all tabs and contents
+          tabs.forEach(t => t.classList.remove('active'));
+          tabContents.forEach(c => c.classList.remove('active'));
+          
+          // Add active class to clicked tab and corresponding content
+          tab.classList.add('active');
+          const tabName = tab.getAttribute('data-tab');
+          document.getElementById(`${tabName}-form`).classList.add('active');
+        });
+      });
+
+      // Set default date to yesterday
+      const dateInput = document.getElementById('date');
+      if (dateInput) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        dateInput.valueAsDate = yesterday;
+      }
+    });
+  </script>
 </body>
 </html>

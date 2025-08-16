@@ -3,70 +3,122 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Balance Check Results - Ethereum Transaction Crawler</title>
+  <title>Portfolio Balance - Ethereum Transaction Explorer</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="./style/balancestyle.css">
 </head>
 <body>
-  <div class="balance-container">
-    <h1>Portfolio Balance</h1>
-    
-    <div class="balance-summary">
-      <h2>Address: <code><%= address %></code></h2>
-      <p><strong>Date:</strong> <%= date %></p>
-      <p><strong>Block:</strong> #<%= blockNumber %> (<%= blockDate %>)</p>
-    </div>
+  <div class="container">
+    <header>
+      <h1>Portfolio Balance</h1>
+      <p class="subtitle">Historical snapshot of your Ethereum holdings</p>
+    </header>
 
-    <!-- ETH Balance -->
-    <div class="eth-balance">
-      <h2>Ethereum (ETH)</h2>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-size: 24px; font-weight: bold;"><%= ethBalance %> ETH</div>
-          <% if (ethPrice) { %>
-            <div>@ $<%= ethPrice %> per ETH</div>
-          <% } %>
+    <div class="card">
+      <div class="address-card">
+        <div class="address-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="#3a86ff"/>
+            <path d="M12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18C15.31 18 18 15.31 18 12C18 8.69 15.31 6 12 6ZM12 16C9.79 16 8 14.21 8 12C8 9.79 9.79 8 12 8C14.21 8 16 9.79 16 12C16 14.21 14.21 16 12 16Z" fill="#3a86ff"/>
+          </svg>
+          <div class="address-badge"><%= address %></div>
         </div>
-        <div style="text-align: right;">
-          <% if (ethBalanceValue) { %>
-            <div style="font-size: 20px; font-weight: bold;">$<%= ethBalanceValue %></div>
-          <% } %>
-        </div>
-      </div>
-    </div>
-
-    <!-- Token Balances -->
-    <% if (hasTokens) { %>
-      <h2>ERC-20 Tokens</h2>
-      <div class="token-list">
-        <% tokenBalances.forEach(token => { %>
-          <div class="token-item">
-            <div class="token-info">
-              <h3><%= token.symbol %></h3>
-              <p><%= token.name %></p>
-            </div>
-            <div class="token-balance">
-              <div class="amount"><%= token.balanceFormatted %> <%= token.symbol %></div>
-              <% if (token.price > 0) { %>
-                <div class="value">$<%= token.valueFormatted %></div>
-              <% } %>
-            </div>
+        <div class="meta-info">
+          <div class="meta-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 2V6" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 2V6" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M3 10H21" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span><strong>Date:</strong> <%= date %></span>
           </div>
-        <% }); %>
+          <div class="meta-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 6V12L16 14" stroke="#6c757d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span><strong>Block:</strong> #<%= blockNumber %></span>
+          </div>
+        </div>
       </div>
-    <% } else { %>
-      <div style="background: #f0f0f0; padding: 20px; border-radius: 8px; text-align: center; color: #666;">
-        <p>No ERC-20 tokens found in this wallet at the specified date.</p>
-      </div>
-    <% } %>
 
-    <!-- Total Portfolio Value -->
-    <div class="total-value">
-      Total Portfolio Value: $<%= totalPortfolioValue %>
+      <div class="eth-card">
+        <div class="eth-header">
+          <div class="eth-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12C0 18.6274 5.37258 24 12 24Z" fill="#627EEA"/>
+              <path d="M12.3735 3V9.6525L17.9963 12.165L12.3735 3Z" fill="white" fill-opacity="0.602"/>
+              <path d="M12.3735 3L6.75 12.165L12.3735 9.6525V3Z" fill="white"/>
+              <path d="M12.3735 16.476V20.9963L18 13.212L12.3735 16.476Z" fill="white" fill-opacity="0.602"/>
+              <path d="M12.3735 20.9963V16.4753L6.75 13.212L12.3735 20.9963Z" fill="white"/>
+              <path d="M12.3735 15.4298L17.9963 12.165L12.3735 9.654V15.4298Z" fill="white" fill-opacity="0.2"/>
+              <path d="M6.75 12.165L12.3735 15.4298V9.654L6.75 12.165Z" fill="white" fill-opacity="0.602"/>
+            </svg>
+          </div>
+          <h2>Ethereum (ETH)</h2>
+        </div>
+        <div class="eth-balance">
+          <div>
+            <div class="eth-amount"><%= ethBalance %> ETH</div>
+            <% if (ethPrice) { %>
+              <div class="eth-price">@ $<%= ethPrice.toFixed(2) %> per ETH</div>
+            <% } %>
+          </div>
+          <% if (ethBalanceValue) { %>
+            <div class="eth-value">$<%= ethBalanceValue %></div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="tokens-section">
+        <div class="section-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="#2b2d42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h2>ERC-20 Tokens</h2>
+        </div>
+
+        <% if (hasTokens) { %>
+          <div class="token-list">
+            <% tokenBalances.forEach(token => { %>
+              <div class="token-card">
+                <div class="token-info">
+                  <div class="token-icon"><%= token.symbol.charAt(0) %></div>
+                  <div class="token-name">
+                    <h3><%= token.symbol %></h3>
+                    <p><%= token.name %></p>
+                  </div>
+                </div>
+                <div class="token-balance">
+                  <div class="token-amount"><%= token.balanceFormatted %> <%= token.symbol %></div>
+                  <% if (token.price > 0) { %>
+                    <div class="token-value">$<%= token.valueFormatted %></div>
+                  <% } %>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="no-tokens">
+            <p>No ERC-20 tokens found in this wallet at the specified date.</p>
+          </div>
+        <% } %>
+      </div>
     </div>
 
-    <div style="text-align: center; margin-top: 30px;">
-      <a href="/" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-        ← Back to Search
+    <div class="portfolio-total">
+      <div class="total-label">Total Portfolio Value</div>
+      <div class="total-value">$<%= totalPortfolioValue %></div>
+    </div>
+
+    <div style="text-align: center;">
+      <a href="/" class="back-button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 12H5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 19L5 12L12 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Back to Search
       </a>
     </div>
   </div>
