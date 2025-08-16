@@ -29,21 +29,21 @@
     }
 
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
-      padding: 2rem 1.5rem;
+      padding: 3rem 2rem;
     }
 
     header {
       text-align: center;
-      margin-bottom: 2.5rem;
+      margin-bottom: 3rem;
     }
 
     h1 {
       color: var(--secondary);
-      font-size: 2.2rem;
+      font-size: 3rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      margin-bottom: 1rem;
       background: var(--eth-gradient);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -52,35 +52,38 @@
 
     .subtitle {
       color: var(--gray);
-      font-size: 1rem;
+      font-size: 1.3rem;
       margin-bottom: 2rem;
     }
 
     .error {
       background: #fff5f7;
       color: var(--danger);
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1.5rem;
-      border-left: 4px solid var(--danger);
+      padding: 1.5rem;
+      border-radius: 10px;
+      margin-bottom: 2rem;
+      border-left: 5px solid var(--danger);
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      max-width: 600px;
+      gap: 1rem;
+      max-width: 800px;
       margin-left: auto;
       margin-right: auto;
+      font-size: 1.1rem;
     }
 
     .error svg {
       flex-shrink: 0;
+      width: 28px;
+      height: 28px;
     }
 
     .form-container {
       background: var(--white);
-      border-radius: 12px;
+      border-radius: 15px;
       box-shadow: var(--shadow);
       overflow: hidden;
-      max-width: 600px;
+      max-width: 800px;
       margin: 0 auto;
     }
 
@@ -92,18 +95,19 @@
 
     .tabs {
       display: inline-flex;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 2px solid var(--border);
       margin: 0 auto;
     }
 
     .tab {
-      padding: 1rem 1.5rem;
+      padding: 1.5rem 2.5rem;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--gray);
       position: relative;
       transition: all 0.2s ease;
       text-align: center;
+      font-size: 1.2rem;
     }
 
     .tab:hover {
@@ -112,23 +116,23 @@
 
     .tab.active {
       color: var(--primary);
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .tab.active::after {
       content: '';
       position: absolute;
-      bottom: -1px;
+      bottom: -2px;
       left: 0;
       right: 0;
-      height: 3px;
+      height: 4px;
       background: var(--primary);
-      border-radius: 3px 3px 0 0;
+      border-radius: 4px 4px 0 0;
     }
 
     .tab-content {
       display: none;
-      padding: 2rem;
+      padding: 3rem;
     }
 
     .tab-content.active {
@@ -136,23 +140,23 @@
     }
 
     .form-group {
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
     }
 
     label {
       display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
+      margin-bottom: 1rem;
+      font-weight: 600;
       color: var(--secondary);
-      font-size: 0.95rem;
+      font-size: 1.2rem;
     }
 
     input {
       width: 100%;
-      padding: 0.875rem 1rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 1rem;
+      padding: 1.2rem 1.5rem;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 1.2rem;
       transition: all 0.2s ease;
       background: var(--light);
     }
@@ -160,11 +164,12 @@
     input:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(58, 134, 255, 0.2);
+      box-shadow: 0 0 0 4px rgba(58, 134, 255, 0.2);
     }
 
     input::placeholder {
       color: #a0aec0;
+      font-size: 1.1rem;
     }
 
     button {
@@ -172,22 +177,23 @@
       background: var(--primary);
       color: var(--white);
       border: none;
-      padding: 1rem;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
+      padding: 1.5rem;
+      border-radius: 10px;
+      font-size: 1.3rem;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
+      gap: 1rem;
+      margin-top: 1rem;
     }
 
     button:hover {
       background: var(--primary-dark);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(58, 134, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(58, 134, 255, 0.3);
     }
 
     button:active {
@@ -195,17 +201,21 @@
     }
 
     .eth-icon {
-      width: 24px;
-      height: 24px;
+      width: 32px;
+      height: 32px;
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       .container {
-        padding: 1.5rem 1rem;
+        padding: 2rem 1.5rem;
       }
       
       h1 {
-        font-size: 1.8rem;
+        font-size: 2.2rem;
+      }
+      
+      .subtitle {
+        font-size: 1.1rem;
       }
       
       .tabs {
@@ -216,11 +226,26 @@
       }
       
       .tab {
-        border-bottom: 1px solid var(--border);
+        border-bottom: 2px solid var(--border);
         text-align: left;
+        padding: 1.2rem 1.5rem;
+        font-size: 1.1rem;
       }
       
       .tab.active::after {
         display: none;
+      }
+      
+      .tab-content {
+        padding: 2rem;
+      }
+      
+      input, button {
+        font-size: 1.1rem;
+        padding: 1rem 1.2rem;
+      }
+      
+      label {
+        font-size: 1.1rem;
       }
     }
